@@ -1,4 +1,4 @@
-﻿#include <iostream>
+#include <iostream>
 #include <fstream>
 #include <cstdlib>
 #include <vector>
@@ -87,6 +87,7 @@ bool processKey(const std::string& key, std::string& fileContent, std::string& r
         return false;
     }
 
+    // Удаляем BOM, если он есть
     if (fileContent[0] == '\xef' && fileContent[1] == '\xbb' && fileContent[2] == '\xbf') {
         fileContent.erase(0, 3);
     }
@@ -105,16 +106,11 @@ bool processKey(const std::string& key, std::string& fileContent, std::string& r
         std::getline(lineStream, fileHWID, '|');
         std::getline(lineStream, expiryDate);
 
+        // Удаляем пробелы и новые строки
         fileKey.erase(fileKey.find_last_not_of(" \n\r\t") + 1);
         fileKey.erase(0, fileKey.find_first_not_of(" \n\r\t"));
 
         std::cout << "Comparing input key: '" << key << "' with file key: '" << fileKey << "'" << std::endl;
-
-        if (fileContent.find("<!DOCTYPE html>") != std::string::npos) {
-            std::cerr << "Error: Received HTML content instead of keys file. Check your token or URL." << std::endl;
-            return 1;
-        }
-
 
         if (key == fileKey) {
             keyFound = true;
@@ -143,7 +139,12 @@ bool processKey(const std::string& key, std::string& fileContent, std::string& r
             }
 
             remainingDays = std::to_string((expiryTime - now) / (60 * 60 * 24));
-            return true;
+
+            // Обновляем строку ключа с новым HWID
+            oss << fileKey << "|" << fileHWID << "|" << expiryDate << "\n";
+        }
+        else {
+            oss << line << "\n";
         }
     }
 
@@ -152,6 +153,7 @@ bool processKey(const std::string& key, std::string& fileContent, std::string& r
         return false;
     }
 
+    fileContent = oss.str(); // Обновляем содержимое файла ключей
     return true;
 }
 
@@ -701,14 +703,12 @@ bool processKey(const std::string& key, std::string& fileContent, std::string& r
 int main() {
     SetConsoleTitle("sJ Macro");
 
-    // Переменные для работы программы
     std::string inputKey;
-    std::string remainingDays; // Объявляем переменную здесь только один раз
-    const std::string keysUrl = "https://raw.githubusercontent.com/s1nse1337/sad/refs/heads/main/keys.txt"; // Замените на свою ссылку
-    const std::string token = "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"; // Ваш GitHub Token
+    std::string remainingDays;
+    const std::string keysUrl = "https://raw.githubusercontent.com/s1nse1337/sad/refs/heads/main/keys.txt";
+    const std::string token = "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";
     std::string keysFile;
 
-    // Шаг 1: Загрузка файла ключей
     std::string fileContent = downloadFileFromGitHubAPI(keysUrl, token);
     if (fileContent.empty()) {
         std::cerr << "Failed to download keys file or content is empty." << std::endl;
@@ -724,14 +724,12 @@ int main() {
         return 1;
     }
 
-    // Шаг 2: Запрос ключа у пользователя
     std::string userKey;
     std::cout << "Enter your license key: ";
-    std::getline(std::cin, userKey);  // Ввод ключа пользователя
+    std::getline(std::cin, userKey);
 
     std::cout << "User-entered key: '" << userKey << "'" << std::endl;
 
-    // Шаг 3: Проверка ключа
     if (!processKey(userKey, fileContent, remainingDays)) {
         std::cerr << "Key is invalid or expired. Exiting..." << std::endl;
         return 1;
@@ -739,8 +737,7 @@ int main() {
 
     std::cout << "Key is valid. Days remaining: " << remainingDays << " days" << std::endl;
 
-    // Шаг 4: Обновление файла ключей на GitHub
-    uploadKeysFile(keysUrl, token, fileContent);;
+    uploadKeysFile(keysUrl, token, fileContent);
 
     // Настройки макросов
     std::string prefireBind = "XButton1";
@@ -748,24 +745,20 @@ int main() {
     std::string retakeTrigger = "Z";
     std::string color1 = "0xE39E46";
     std::string color2 = "0xDD9B44";
-    std::string savedLicenseKey = inputKey; // Сохраняем ключ
+    std::string savedLicenseKey = inputKey;
     bool file5Opened = false;
     std::string FastLootBind = "BackSpace";
     std::string FastLootTake = "E";
 
-    // Шаг 5: Аутентификация пользователя
     authenticateUser(savedLicenseKey, prefireBind, retakeBindBuilding, retakeTrigger, color1, color2, file5Opened, FastLootBind, FastLootTake);
 
-    // Шаг 6: Создание необходимых файлов
     createDirectoryAndFiles(prefireBind, retakeBindBuilding, retakeTrigger, color1, color2, FastLootTake, FastLootBind, file5Opened);
 
-    // Основной цикл меню
     while (true) {
         printMenu(prefireBind, retakeBindBuilding, retakeTrigger, color1, color2, FastLootTake, FastLootBind, remainingDays);
 
         int choice;
 
-        // Check for valid numeric input
         if (!(std::cin >> choice)) {
             std::cout << skCrypt("Invalid input, please enter a number.").decrypt() << std::endl;
             std::cin.clear();
