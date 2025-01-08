@@ -30,6 +30,42 @@ size_t WriteCallback(void* contents, size_t size, size_t nmemb, void* userp) {
     return size * nmemb;
 }
 
+#include <chrono>
+#include <ctime>
+
+// Function to get current UTC time
+std::time_t getCurrentUTCTime() {
+    auto now = std::chrono::system_clock::now();
+    auto now_c = std::chrono::system_clock::to_time_t(now);
+    std::tm* utc_tm = std::gmtime(&now_c);
+    return std::mktime(utc_tm);
+}
+
+// Adjust the time to UTC+2
+std::time_t getCurrentUTCPlus2Time() {
+    return getCurrentUTCTime() + 2 * 60 * 60; // Add 2 hours
+}   curl_easy_cleanup(curl);
+    }
+
+    Json::Value jsonData;
+    Json::Reader jsonReader;
+    if (jsonReader.parse(readBuffer, jsonData)) {
+        std::string utcDatetime = jsonData["utc_datetime"].asString();
+        std::tm tm = {};
+        std::istringstream ss(utcDatetime);
+        ss >> std::get_time(&tm, "%Y-%m-%dT%H:%M:%S");
+        return std::mktime(&tm);
+    }
+
+    return std::time(nullptr); // Return local time on parsing failure
+}
+
+// Adjust the time to UTC+2
+std::time_t getCurrentUTCPlus2Time() {
+    std::time_t utcTime = getCurrentUTCTime();
+    return utcTime + 2 * 60 * 60; // Add 2 hours
+}
+
 // Функция для загрузки файла через GitHub API
 std::string downloadFileFromGitHubAPI(const std::string& url, const std::string& token) {
     CURL* curl;
@@ -104,15 +140,14 @@ bool processKey(const std::string& key, std::string& fileContent, std::string& r
             std::istringstream ss(expiryDate);
             ss >> std::get_time(&tm, "%Y-%m-%d");
 
-            std::time_t currentTime = std::time(nullptr);
-            std::tm* now = std::localtime(&currentTime);
+            std::time_t currentTime = getCurrentUTCPlus2Time();
 
-            if (std::difftime(std::mktime(&tm), std::mktime(now)) < 0) {
+            if (std::difftime(std::mktime(&tm), currentTime) < 0) {
                 std::cerr << "Key has expired." << std::endl;
                 return false;
             }
 
-            remainingDays = std::to_string((std::mktime(&tm) - std::mktime(now)) / (60 * 60 * 24));
+            remainingDays = std::to_string((std::mktime(&tm) - currentTime) / (60 * 60 * 24));
             return true;
         }
     }
@@ -124,7 +159,6 @@ bool processKey(const std::string& key, std::string& fileContent, std::string& r
 
     return true;
 }
-
 void uploadKeysFile(const std::string& url, const std::string& token, const std::string& content) {
     CURL* curl;
     CURLcode res;
