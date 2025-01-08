@@ -56,6 +56,13 @@ std::string downloadFileFromGitHubAPI(const std::string& url, const std::string&
         if (res != CURLE_OK) {
             std::cerr << "CURL error: " << curl_easy_strerror(res) << std::endl;
         }
+        else {
+            long http_code = 0;
+            curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
+            if (http_code != 200) {
+                std::cerr << "HTTP error: " << http_code << std::endl;
+            }
+        }
 
         // Очищаем ресурсы
         curl_slist_free_all(headers);
@@ -69,17 +76,6 @@ std::string downloadFileFromGitHubAPI(const std::string& url, const std::string&
 #include <iomanip>
 
 std::string get_hwid(); // Используемая ранее функция
-
-bool isKeyExpired(const std::string& expirationDate) {
-    std::tm tm = {};
-    std::istringstream ss(expirationDate);
-    ss >> std::get_time(&tm, "%Y-%m-%d");
-
-    std::time_t currentTime = std::time(nullptr);
-    std::tm* now = std::localtime(&currentTime);
-
-    return std::difftime(std::mktime(&tm), std::mktime(now)) < 0;
-}
 
 bool processKey(const std::string& key, std::string& fileContent, std::string& remainingDays) {
     if (fileContent.find("<!DOCTYPE html>") != std::string::npos) {
@@ -594,7 +590,7 @@ int main() {
 
     std::string remainingDays;
     const std::string keysUrl = "https://raw.githubusercontent.com/s1nse1337/sad/main/keys.txt";
-    const std::string token = "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";
+    const std::string token = "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";
 
     std::string fileContent = downloadFileFromGitHubAPI(keysUrl, token);
     if (fileContent.empty()) {
