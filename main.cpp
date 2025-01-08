@@ -69,6 +69,7 @@ std::string downloadFileFromGitHubAPI(const std::string& url, const std::string&
 
     return readBuffer;
 }
+
 #include <sstream>
 #include <ctime>
 #include <iomanip>
@@ -577,6 +578,16 @@ BOOL WINAPI consoleHandler(DWORD dwCtrlType) {
 }
 bool processKey(const std::string& key, std::string& fileContent, std::string& remainingDays);
 
+// Функция для сохранения конфигурации в файл
+void saveConfig(const std::string& licenseKey) {
+    std::ofstream configFile(getConfigFilePath());
+    if (!configFile) {
+        std::cerr << "Failed to open config file for writing: " << std::endl;
+        return;
+    }
+    configFile << licenseKey << std::endl; // Сохранение ключа лицензии
+}
+
 int main() {
     SetConsoleTitle("sJ Macro");
 
@@ -588,7 +599,7 @@ int main() {
 
     std::string remainingDays;
     const std::string keysUrl = "https://raw.githubusercontent.com/s1nse1337/sad/main/keys.txt";
-    const std::string token = "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";
+    const std::string token = "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";
 
     std::string fileContent = downloadFileFromGitHubAPI(keysUrl, token);
     if (fileContent.empty()) {
@@ -607,7 +618,6 @@ int main() {
 
     std::cout << "Key is valid. Days remaining: " << remainingDays << " days" << std::endl;
 
-    uploadKeysFile(keysUrl, token, fileContent);
 
     // Настройки макросов
     std::string prefireBind = "XButton1";
@@ -623,7 +633,8 @@ int main() {
     // Основной цикл меню
     while (true) {
         // printMenu(prefireBind, retakeBindBuilding, retakeTrigger, color1, color2, FastLootTake, FastLootBind, remainingDays);
-
+        printMenu(prefireBind, retakeBindBuilding, retakeTrigger, color1, color2, FastLootTake, FastLootBind, remainingDays);
+        saveConfig(prefireBind, retakeBindBuilding, retakeTrigger, color1, color2, savedLicenseKey, file5Opened, FastLootTake, FastLootBind);
         int choice;
 
         if (!(std::cin >> choice)) {
