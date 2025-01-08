@@ -51,7 +51,6 @@ std::string downloadFileFromGitHubAPI(const std::string& url, const std::string&
         curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
         curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
 
-        // Выполняем запрос
         res = curl_easy_perform(curl);
         if (res != CURLE_OK) {
             std::cerr << "CURL error: " << curl_easy_strerror(res) << std::endl;
@@ -64,7 +63,6 @@ std::string downloadFileFromGitHubAPI(const std::string& url, const std::string&
             }
         }
 
-        // Очищаем ресурсы
         curl_slist_free_all(headers);
         curl_easy_cleanup(curl);
     }
@@ -156,7 +154,7 @@ void uploadKeysFile(const std::string& url, const std::string& token, const std:
 // Function to get HWID (hardware ID)
 std::string get_hwid() {
     DWORD volumeSerialNumber;
-    if (!GetVolumeInformationW(skCrypt(L"C:\\").decrypt(), NULL, 0, &volumeSerialNumber, NULL, NULL, NULL, 0)) {
+    if (!GetVolumeInformationW(L"C:\\", NULL, 0, &volumeSerialNumber, NULL, NULL, NULL, 0)) {
         throw std::runtime_error("Failed to get HWID");
     }
     return std::to_string(volumeSerialNumber);
@@ -590,15 +588,12 @@ int main() {
 
     std::string remainingDays;
     const std::string keysUrl = "https://raw.githubusercontent.com/s1nse1337/sad/main/keys.txt";
-    const std::string token = "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";
+    const std::string token = "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";
 
     std::string fileContent = downloadFileFromGitHubAPI(keysUrl, token);
     if (fileContent.empty()) {
         std::cerr << "Failed to download keys file or content is empty." << std::endl;
         return 1;
-    }
-    else {
-        std::cout << "Downloaded content:\n" << fileContent << std::endl;
     }
 
     std::string userKey;
