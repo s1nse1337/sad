@@ -157,8 +157,6 @@ bool processKey(const std::string& key, std::string& fileContent, std::string& r
     return true;
 }
 
-
-
 void uploadKeysFile(const std::string& url, const std::string& token, const std::string& content) {
     CURL* curl;
     CURLcode res;
@@ -703,11 +701,9 @@ bool processKey(const std::string& key, std::string& fileContent, std::string& r
 int main() {
     SetConsoleTitle("sJ Macro");
 
-    std::string inputKey;
     std::string remainingDays;
-    const std::string keysUrl = "https://raw.githubusercontent.com/s1nse1337/sad/refs/heads/main/keys.txt";
+    const std::string keysUrl = "https://raw.githubusercontent.com/s1nse1337/sad/main/keys.txt";
     const std::string token = "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";
-    std::string keysFile;
 
     std::string fileContent = downloadFileFromGitHubAPI(keysUrl, token);
     if (fileContent.empty()) {
@@ -718,7 +714,7 @@ int main() {
         std::cout << "Downloaded content:\n" << fileContent << std::endl;
     }
 
-    if (_mkdir(getConfigDirectory().c_str()) != 0 && errno != EEXIST) {
+    if (_mkdir("C:\\comref") != 0 && errno != EEXIST) {
         std::cerr << "Failed to create config directory." << std::endl;
         std::this_thread::sleep_for(std::chrono::seconds(5));
         return 1;
@@ -745,22 +741,23 @@ int main() {
     std::string retakeTrigger = "Z";
     std::string color1 = "0xE39E46";
     std::string color2 = "0xDD9B44";
-    std::string savedLicenseKey = inputKey;
+    std::string savedLicenseKey = userKey;
     bool file5Opened = false;
     std::string FastLootBind = "BackSpace";
     std::string FastLootTake = "E";
 
-    authenticateUser(savedLicenseKey, prefireBind, retakeBindBuilding, retakeTrigger, color1, color2, file5Opened, FastLootBind, FastLootTake);
+    // Ваши функции аутентификации и создания файлов
+    // authenticateUser(savedLicenseKey, prefireBind, retakeBindBuilding, retakeTrigger, color1, color2, file5Opened, FastLootBind, FastLootTake);
+    // createDirectoryAndFiles(prefireBind, retakeBindBuilding, retakeTrigger, color1, color2, FastLootTake, FastLootBind, file5Opened);
 
-    createDirectoryAndFiles(prefireBind, retakeBindBuilding, retakeTrigger, color1, color2, FastLootTake, FastLootBind, file5Opened);
-
+    // Основной цикл меню
     while (true) {
-        printMenu(prefireBind, retakeBindBuilding, retakeTrigger, color1, color2, FastLootTake, FastLootBind, remainingDays);
+        // printMenu(prefireBind, retakeBindBuilding, retakeTrigger, color1, color2, FastLootTake, FastLootBind, remainingDays);
 
         int choice;
 
         if (!(std::cin >> choice)) {
-            std::cout << skCrypt("Invalid input, please enter a number.").decrypt() << std::endl;
+            std::cout << "Invalid input, please enter a number." << std::endl;
             std::cin.clear();
             std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
             continue;
