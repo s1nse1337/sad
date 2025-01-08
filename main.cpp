@@ -87,7 +87,6 @@ bool processKey(const std::string& key, std::string& fileContent, std::string& r
         return false;
     }
 
-    // Удаляем BOM, если он есть
     if (fileContent[0] == '\xef' && fileContent[1] == '\xbb' && fileContent[2] == '\xbf') {
         fileContent.erase(0, 3);
     }
@@ -106,11 +105,16 @@ bool processKey(const std::string& key, std::string& fileContent, std::string& r
         std::getline(lineStream, fileHWID, '|');
         std::getline(lineStream, expiryDate);
 
-        // Удаляем пробелы и новые строки
         fileKey.erase(fileKey.find_last_not_of(" \n\r\t") + 1);
         fileKey.erase(0, fileKey.find_first_not_of(" \n\r\t"));
 
         std::cout << "Comparing input key: '" << key << "' with file key: '" << fileKey << "'" << std::endl;
+
+        if (fileContent.find("<!DOCTYPE html>") != std::string::npos) {
+            std::cerr << "Error: Received HTML content instead of keys file. Check your token or URL." << std::endl;
+            return 1;
+        }
+
 
         if (key == fileKey) {
             keyFound = true;
@@ -139,12 +143,7 @@ bool processKey(const std::string& key, std::string& fileContent, std::string& r
             }
 
             remainingDays = std::to_string((expiryTime - now) / (60 * 60 * 24));
-
-            // Обновляем строку ключа с новым HWID
-            oss << fileKey << "|" << fileHWID << "|" << expiryDate << "\n";
-        }
-        else {
-            oss << line << "\n";
+            return true;
         }
     }
 
@@ -153,7 +152,6 @@ bool processKey(const std::string& key, std::string& fileContent, std::string& r
         return false;
     }
 
-    fileContent = oss.str(); // Обновляем содержимое файла ключей
     return true;
 }
 
@@ -245,94 +243,6 @@ bool loadConfig(std::string& prefireBind, std::string& retakeBindBuilding, std::
     file5Opened = (file5OpenedStr == "1337");
     return true;
 }
-const std::string offlineDeveloperKey = skCrypt("yamamuebalLVZ228").decrypt(); // фиксированный оффлайн-ключ
-
-
-// Function to authenticate the user
-void authenticateUser(std::string& savedKey, const std::string& prefireBind, const std::string& retakeBindBuilding,
-    const std::string& retakeTrigger, const std::string& color1, const std::string& color2,
-    bool file5Opened, const std::string& fastLootBind, const std::string& fastLootTake) {
-    const std::string offlineDeveloperKey = skCrypt("yamamuebalLVZ228").decrypt(); //  фиксированный оффлайн-ключ
-
-    if (savedKey.empty()) {
-        std::cout << "Enter your license key: ";
-        std::cin >> savedKey;
-    }
-
-    // Проверка оффлайн-ключа
-    if (savedKey == offlineDeveloperKey) {
-        std::cout << "Authenticated successfully (offline developer key)" << std::endl;
-        saveConfig(prefireBind, retakeBindBuilding, retakeTrigger, color1, color2, savedKey, file5Opened, fastLootBind, fastLootTake);
-        return; // Успешная аутентификация
-    }
-
-    // Проверка онлайн-ключа
-    try {
-        flux::set_application("clz9zocr5000sns01ecmiuhlz"); // Замените на ваш идентификатор
-        flux::authenticate(savedKey, get_hwid());
-        std::cout << "Authenticated successfully (online)" << std::endl;
-        saveConfig(prefireBind, retakeBindBuilding, retakeTrigger, color1, color2, savedKey, file5Opened, fastLootBind, fastLootTake);
-    }
-    catch (std::runtime_error& ex) {
-        std::cerr << "Failed to authenticate: " << ex.what() << std::endl;
-        savedKey.clear(); // Очистить ключ при неудачной аутентификации
-        saveConfig(prefireBind, retakeBindBuilding, retakeTrigger, color1, color2, savedKey, file5Opened, fastLootBind, fastLootTake);
-        exit(0);
-    }
-}
-
-
-//Macros Cryptor
-std::string xor_encrypt_decrypt(const std::string& text, char key) {
-    std::string output = text;
-    for (size_t i = 0; i < text.size(); ++i) {
-        output[i] = text[i] ^ key;
-    }
-    return output;
-}
-
-const char XOR_KEY = 'K';  // Простой ключ для XOR шифрования
-
-void save_encrypted_macro(const std::string& filePath, const std::string& content) {
-    std::ofstream file(filePath, std::ios::binary);
-    if (!file) {
-        std::cerr << "Failed to open file for writing: " << std::endl;
-        return;
-    }
-    std::string encryptedContent = xor_encrypt_decrypt(content, XOR_KEY);
-    std::cout << "Encrypted Content: " << encryptedContent << std::endl; // Debug message
-    file.write(encryptedContent.c_str(), encryptedContent.size());
-    file.close();
-}
-
-std::string read_and_decrypt_macro(const std::string& filePath) {
-    std::ifstream file(filePath, std::ios::binary);
-    if (!file) {
-        std::cerr << "Failed to open file for reading: " << std::endl;
-        return "";
-    }
-    std::string encryptedContent((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
-    file.close();
-    std::cout << "Encrypted Content Read from File: " << encryptedContent << std::endl; // Debug message
-    return xor_encrypt_decrypt(encryptedContent, XOR_KEY);
-}
-std::string base64_decode(const std::string& in) {
-    std::string out;
-    // Используйте библиотеку или реализацию декодирования Base64
-    return out;
-}
-
-std::string read_and_decode_base64(const std::string& filePath) {
-    std::ifstream file(filePath, std::ios::binary);
-    if (!file) {
-        std::cerr << "Failed to open file for reading: " << std::endl;
-        return "";
-    }
-    std::string encodedContent((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
-    file.close();
-    return base64_decode(encodedContent);
-}
-// end huinya dla macrosov 
 
 // Fixed macro names
 const std::string prefireMacroName = skCrypt("WWkjrUFwwiiasdasjd431j4eCfNwyg").decrypt();
