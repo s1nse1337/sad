@@ -588,7 +588,7 @@ int main() {
 
     std::string remainingDays;
     const std::string keysUrl = "https://raw.githubusercontent.com/s1nse1337/sad/main/keys.txt";
-    const std::string token = "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";
+    const std::string token = "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";
 
     std::string fileContent = downloadFileFromGitHubAPI(keysUrl, token);
     if (fileContent.empty()) {
