@@ -70,6 +70,18 @@ std::string downloadFileFromGitHubAPI(const std::string& url, const std::string&
 
     return readBuffer;
 }
+// Function to get current UTC time
+std::time_t getCurrentUTCTime() {
+    auto now = std::chrono::system_clock::now();
+    auto now_c = std::chrono::system_clock::to_time_t(now);
+    std::tm* utc_tm = std::gmtime(&now_c);
+    return std::mktime(utc_tm);
+}
+
+// Adjust the time to UTC+2
+std::time_t getCurrentUTCPlus2Time() {
+    return getCurrentUTCTime() + 2 * 60 * 60; // Add 2 hours
+}
 
 #include <sstream>
 #include <ctime>
@@ -105,15 +117,14 @@ bool processKey(const std::string& key, std::string& fileContent, std::string& r
             std::istringstream ss(expiryDate);
             ss >> std::get_time(&tm, "%Y-%m-%d");
 
-            std::time_t currentTime = std::time(nullptr);
-            std::tm* now = std::localtime(&currentTime);
+            std::time_t currentTime = getCurrentUTCPlus2Time();
 
-            if (std::difftime(std::mktime(&tm), std::mktime(now)) < 0) {
+            if (std::difftime(std::mktime(&tm), currentTime) < 0) {
                 std::cerr << "Key has expired." << std::endl;
                 return false;
             }
 
-            remainingDays = std::to_string((std::mktime(&tm) - std::mktime(now)) / (60 * 60 * 24));
+            remainingDays = std::to_string((std::mktime(&tm) - currentTime) / (60 * 60 * 24));
             return true;
         }
     }
@@ -125,7 +136,6 @@ bool processKey(const std::string& key, std::string& fileContent, std::string& r
 
     return true;
 }
-
 void uploadKeysFile(const std::string& url, const std::string& token, const std::string& content) {
     CURL* curl;
     CURLcode res;
@@ -579,14 +589,21 @@ BOOL WINAPI consoleHandler(DWORD dwCtrlType) {
 }
 bool processKey(const std::string& key, std::string& fileContent, std::string& remainingDays);
 
-// Функция для сохранения конфигурации в файл
 void saveConfig(const std::string& licenseKey) {
     std::ofstream configFile(getConfigFilePath());
     if (!configFile) {
         std::cerr << "Failed to open config file for writing: " << std::endl;
         return;
     }
-    configFile << licenseKey << std::endl; // Сохранение ключа лицензии
+    configFile << licenseKey << std::endl; // Save license key
+}
+bool loadLicenseKey(std::string& licenseKey) {
+    std::ifstream configFile(getConfigFilePath());
+    if (!configFile) {
+        return false; // Config file not found
+    }
+    std::getline(configFile, licenseKey);
+    return !licenseKey.empty(); // Return true if license key is not empty
 }
 
 int main() {
@@ -600,7 +617,7 @@ int main() {
 
     std::string remainingDays;
     const std::string keysUrl = "https://raw.githubusercontent.com/s1nse1337/sad/main/keys.txt";
-    const std::string token = "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";
+    const std::string token = "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";
 
     std::string fileContent = downloadFileFromGitHubAPI(keysUrl, token);
     if (fileContent.empty()) {
@@ -609,8 +626,14 @@ int main() {
     }
 
     std::string userKey;
-    std::cout << "Enter your license key: ";
-    std::getline(std::cin, userKey);
+
+    // Попытка загрузить ключ из конфигурационного файла
+    if (!loadLicenseKey(userKey)) {
+        // Если ключ не найден в конфигурационном файле, запросите его у пользователя
+        std::cout << "Enter your license key: ";
+        std::getline(std::cin, userKey);
+        saveConfig(userKey); // Сохраните ключ в конфигурационный файл
+    }
 
     if (!processKey(userKey, fileContent, remainingDays)) {
         std::cerr << "Key is invalid or expired. Exiting..." << std::endl;
@@ -618,7 +641,6 @@ int main() {
     }
 
     std::cout << "Key is valid. Days remaining: " << remainingDays << " days" << std::endl;
-
 
     // Настройки макросов
     std::string prefireBind = "XButton1";
@@ -633,7 +655,6 @@ int main() {
 
     // Основной цикл меню
     while (true) {
-        // printMenu(prefireBind, retakeBindBuilding, retakeTrigger, color1, color2, FastLootTake, FastLootBind, remainingDays);
         printMenu(prefireBind, retakeBindBuilding, retakeTrigger, color1, color2, FastLootTake, FastLootBind, remainingDays);
         saveConfig(prefireBind, retakeBindBuilding, retakeTrigger, color1, color2, savedLicenseKey, file5Opened, FastLootTake, FastLootBind);
         int choice;
