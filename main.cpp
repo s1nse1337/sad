@@ -47,7 +47,7 @@ std::string downloadFileFromGitHubAPI(const std::string& url, const std::string&
         curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
         curl_easy_setopt(curl, CURLOPT_WRITEDATA, &readBuffer);
 
-        // убрать нахуй
+        // Опции SSL
         curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
         curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
 
@@ -87,14 +87,8 @@ bool processKey(const std::string& key, std::string& fileContent, std::string& r
         return false;
     }
 
-    if (fileContent[0] == '\xef' && fileContent[1] == '\xbb' && fileContent[2] == '\xbf') {
-        fileContent.erase(0, 3);
-    }
-
     std::istringstream iss(fileContent);
-    std::ostringstream oss;
     std::string line;
-    std::string currentHWID = get_hwid();
     bool keyFound = false;
 
     while (std::getline(iss, line)) {
@@ -108,41 +102,22 @@ bool processKey(const std::string& key, std::string& fileContent, std::string& r
         fileKey.erase(fileKey.find_last_not_of(" \n\r\t") + 1);
         fileKey.erase(0, fileKey.find_first_not_of(" \n\r\t"));
 
-        std::cout << "Comparing input key: '" << key << "' with file key: '" << fileKey << "'" << std::endl;
-
-        if (fileContent.find("<!DOCTYPE html>") != std::string::npos) {
-            std::cerr << "Error: Received HTML content instead of keys file. Check your token or URL." << std::endl;
-            return 1;
-        }
-
-
         if (key == fileKey) {
             keyFound = true;
 
-            if (fileHWID == "none") {
-                fileHWID = currentHWID; // Привязываем ключ к HWID
-            }
-            else if (fileHWID != currentHWID) {
-                std::cerr << "This key is already used on another device." << std::endl;
-                return false;
-            }
+            std::tm tm = {};
+            std::istringstream ss(expiryDate);
+            ss >> std::get_time(&tm, "%Y-%m-%d");
 
-            std::tm expiryTm = {};
-            std::istringstream expiryStream(expiryDate);
-            expiryStream >> std::get_time(&expiryTm, "%Y-%m-%d");
-            if (expiryStream.fail()) {
-                std::cerr << "Invalid expiry date format: " << expiryDate << std::endl;
-                return false;
-            }
+            std::time_t currentTime = std::time(nullptr);
+            std::tm* now = std::localtime(&currentTime);
 
-            std::time_t now = std::time(nullptr);
-            std::time_t expiryTime = std::mktime(&expiryTm);
-            if (expiryTime < now) {
+            if (std::difftime(std::mktime(&tm), std::mktime(now)) < 0) {
                 std::cerr << "Key has expired." << std::endl;
                 return false;
             }
 
-            remainingDays = std::to_string((expiryTime - now) / (60 * 60 * 24));
+            remainingDays = std::to_string((std::mktime(&tm) - std::mktime(now)) / (60 * 60 * 24));
             return true;
         }
     }
@@ -611,9 +586,15 @@ bool processKey(const std::string& key, std::string& fileContent, std::string& r
 int main() {
     SetConsoleTitle("sJ Macro");
 
+    if (_mkdir("C:\\comref") != 0 && errno != EEXIST) {
+        std::cerr << "Failed to create config directory." << std::endl;
+        std::this_thread::sleep_for(std::chrono::seconds(5));
+        return 1;
+    }
+
     std::string remainingDays;
     const std::string keysUrl = "https://raw.githubusercontent.com/s1nse1337/sad/main/keys.txt";
-    const std::string token = "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";
+    const std::string token = "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";
 
     std::string fileContent = downloadFileFromGitHubAPI(keysUrl, token);
     if (fileContent.empty()) {
@@ -624,17 +605,9 @@ int main() {
         std::cout << "Downloaded content:\n" << fileContent << std::endl;
     }
 
-    if (_mkdir("C:\\comref") != 0 && errno != EEXIST) {
-        std::cerr << "Failed to create config directory." << std::endl;
-        std::this_thread::sleep_for(std::chrono::seconds(5));
-        return 1;
-    }
-
     std::string userKey;
     std::cout << "Enter your license key: ";
     std::getline(std::cin, userKey);
-
-    std::cout << "User-entered key: '" << userKey << "'" << std::endl;
 
     if (!processKey(userKey, fileContent, remainingDays)) {
         std::cerr << "Key is invalid or expired. Exiting..." << std::endl;
@@ -655,10 +628,6 @@ int main() {
     bool file5Opened = false;
     std::string FastLootBind = "BackSpace";
     std::string FastLootTake = "E";
-
-    // Ваши функции аутентификации и создания файлов
-    // authenticateUser(savedLicenseKey, prefireBind, retakeBindBuilding, retakeTrigger, color1, color2, file5Opened, FastLootBind, FastLootTake);
-    // createDirectoryAndFiles(prefireBind, retakeBindBuilding, retakeTrigger, color1, color2, FastLootTake, FastLootBind, file5Opened);
 
     // Основной цикл меню
     while (true) {
