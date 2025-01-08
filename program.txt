@@ -1,8 +1,3 @@
-Downloaded content:
-123|none|2025-01-31
-key2|none|2025-06-30
-key3|none|2026-01-01
-
 Enter your license key: 123
 Key is valid. Days remaining: 22 days
 <!DOCTYPE html>
