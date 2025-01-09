@@ -72,7 +72,14 @@ std::string downloadFileFromGitHubAPI(const std::string& url, const std::string&
 
     return readBuffer;
 }
-
+std::time_t getCurrentUTCPlus2Time() {
+    std::time_t currentTime = getCurrentTimeFromAPI();
+    if (currentTime != 0) {
+        // Добавляем 2 часа (7200 секунд) к текущему времени
+        currentTime += 7200;
+    }
+    return currentTime;
+}
 // Функция для получения текущего времени из WorldTimeAPI
 std::time_t getCurrentTimeFromAPI() {
     CURL* curl;
@@ -169,36 +176,6 @@ bool processKey(const std::string& key, std::string& fileContent, std::string& r
     return true;
 }
 // Функция для обновления файла ключей
-void updateKeysFile(const std::string& key, const std::string& hwid, const std::string& filePath) {
-    std::ifstream inFile(filePath);
-    std::stringstream buffer;
-    buffer << inFile.rdbuf();
-    inFile.close();
-
-    std::string fileContent = buffer.str();
-    std::istringstream iss(fileContent);
-    std::string line;
-    std::string updatedContent;
-
-    while (std::getline(iss, line)) {
-        std::istringstream lineStream(line);
-        std::string fileKey, fileHWID, expiryDate;
-
-        std::getline(lineStream, fileKey, '|');
-        std::getline(lineStream, fileHWID, '|');
-        std::getline(lineStream, expiryDate);
-
-        if (fileKey == key && fileHWID == "none") {
-            line = fileKey + "|" + hwid + "|" + expiryDate;
-        }
-
-        updatedContent += line + "\n";
-    }
-
-    std::ofstream outFile(filePath);
-    outFile << updatedContent;
-    outFile.close();
-}
 void updateKeysFile(const std::string& key, const std::string& hwid, const std::string& filePath) {
     std::ifstream inFile(filePath);
     std::stringstream buffer;
