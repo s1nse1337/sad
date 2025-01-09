@@ -13,8 +13,10 @@
 #include "skStr.h"
 #include <curl/curl.h>
 #include <curl/easy.h>
-#include <json/json.h>
-#include <fstream>
+#include <json/json.h> // Используйте правильный путь для jsoncpp
+#include <ctime>
+#include <iomanip>
+#include <sstream>
 // invalid imput letter
 #define NOMINMAX
 #include <limits>
@@ -70,7 +72,8 @@ std::string downloadFileFromGitHubAPI(const std::string& url, const std::string&
 
     return readBuffer;
 }
-/ Функция для получения текущего времени из WorldTimeAPI
+
+// Функция для получения текущего времени из WorldTimeAPI
 std::time_t getCurrentTimeFromAPI() {
     CURL* curl;
     CURLcode res;
@@ -96,8 +99,10 @@ std::time_t getCurrentTimeFromAPI() {
 
     // Парсинг JSON ответа
     Json::Value jsonData;
-    Json::Reader jsonReader;
-    if (jsonReader.parse(readBuffer, jsonData)) {
+    Json::CharReaderBuilder readerBuilder;
+    std::string errs;
+    std::istringstream s(readBuffer);
+    if (Json::parseFromStream(readerBuilder, s, &jsonData, &errs)) {
         std::string datetimeStr = jsonData["datetime"].asString();
         std::tm tm = {};
         std::istringstream ss(datetimeStr);
@@ -105,7 +110,7 @@ std::time_t getCurrentTimeFromAPI() {
         return std::mktime(&tm);
     }
     else {
-        std::cerr << "Failed to parse JSON response." << std::endl;
+        std::cerr << "Failed to parse JSON response: " << errs << std::endl;
         return 0;
     }
 }
@@ -163,30 +168,36 @@ bool processKey(const std::string& key, std::string& fileContent, std::string& r
 
     return true;
 }
-void uploadKeysFile(const std::string& url, const std::string& token, const std::string& content) {
-    CURL* curl;
-    CURLcode res;
+// Функция для обновления файла ключей
+void updateKeysFile(const std::string& key, const std::string& hwid, const std::string& filePath) {
+    std::ifstream inFile(filePath);
+    std::stringstream buffer;
+    buffer << inFile.rdbuf();
+    inFile.close();
 
-    curl = curl_easy_init();
-    if (curl) {
-        struct curl_slist* headers = NULL;
-        headers = curl_slist_append(headers, ("Authorization: Bearer " + token).c_str());
-        headers = curl_slist_append(headers, "Accept: application/vnd.github.v3.raw");
+    std::string fileContent = buffer.str();
+    std::istringstream iss(fileContent);
+    std::string line;
+    std::string updatedContent;
 
-        curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
-        curl_easy_setopt(curl, CURLOPT_POSTFIELDS, content.c_str());
-        curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "PUT");
+    while (std::getline(iss, line)) {
+        std::istringstream lineStream(line);
+        std::string fileKey, fileHWID, expiryDate;
 
-        // убрать нахуй
-        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
-        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
+        std::getline(lineStream, fileKey, '|');
+        std::getline(lineStream, fileHWID, '|');
+        std::getline(lineStream, expiryDate);
 
-        res = curl_easy_perform(curl);
-        if (res != CURLE_OK) {
-            std::cerr << "Failed to upload file: " << curl_easy_strerror(res) << std::endl;
+        if (fileKey == key && fileHWID == "none") {
+            line = fileKey + "|" + hwid + "|" + expiryDate;
         }
-        curl_easy_cleanup(curl);
+
+        updatedContent += line + "\n";
     }
+
+    std::ofstream outFile(filePath);
+    outFile << updatedContent;
+    outFile.close();
 }
 void updateKeysFile(const std::string& key, const std::string& hwid, const std::string& filePath) {
     std::ifstream inFile(filePath);
