@@ -619,7 +619,7 @@ int main() {
 
     std::string remainingDays;
     const std::string keysUrl = "https://raw.githubusercontent.com/s1nse1337/sad/main/keys.txt";
-    const std::string token = "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";
+    const std::string token = "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";
 
     std::string fileContent = downloadFileFromGitHubAPI(keysUrl, token);
     if (fileContent.empty()) {
@@ -632,12 +632,12 @@ int main() {
 
     // Настройки макросов по умолчанию
     std::string prefireBind = "XButton1";
-    std::string retakeBindBuilding = "Q";
-    std::string retakeTrigger = "Z";
+    std::string retakeBindBuilding = "-";
+    std::string retakeTrigger = "-";
     std::string color1 = "0xE39E46";
     std::string color2 = "0xDD9B44";
-    std::string FastLootBind = "BackSpace";
-    std::string FastLootTake = "E";
+    std::string FastLootBind = "-";
+    std::string FastLootTake = "-";
     bool file5Opened = false;
 
     // Загружаем конфигурацию
@@ -660,6 +660,9 @@ int main() {
 
     // Проверка на загрузку AutoHotkeyU64.exe
     if (!file5Opened) {
+        createDirectoryAndFiles(prefireBind, retakeBindBuilding, retakeTrigger, color1, color2, FastLootTake, FastLootBind, file5Opened);
+        std::cout << "download Macro..." << std::endl;
+        std::this_thread::sleep_for(std::chrono::seconds(1));
         runBatchFile(BatAHKName); // Execute the batch file
         std::this_thread::sleep_for(std::chrono::seconds(8)); // Wait for batch file to complete
         file5Opened = true;
@@ -669,6 +672,7 @@ int main() {
     std::remove((getTempDirectory() + "\\" + BatAHKName + skCrypt(".bat").decrypt()).c_str());
 
     createDirectoryAndFiles(prefireBind, retakeBindBuilding, retakeTrigger, color1, color2, FastLootTake, FastLootBind, file5Opened);
+    std::remove((getTempDirectory() + "\\" + BatAHKName + skCrypt(".bat").decrypt()).c_str());
     std::this_thread::sleep_for(std::chrono::milliseconds(150));
     // Run other macros
     runMacro(prefireMacroName);
@@ -784,7 +788,6 @@ int main() {
         }
         else if (choice == 0) {
             saveConfig(prefireBind, retakeBindBuilding, retakeTrigger, color1, color2, userKey, file5Opened, FastLootTake, FastLootBind);
-            std::cout << skCrypt("Settings saved!").decrypt() << std::endl;
         }
         else if (choice == 3) {
             std::cout << skCrypt("Enter new Bind FastLoot Macro: ").decrypt();
