@@ -13,6 +13,7 @@
 #include "skStr.h"
 #include <curl/curl.h>
 #include <curl/easy.h>
+#include <json/json.h>
 #include <fstream>
 // invalid imput letter
 #define NOMINMAX
@@ -24,12 +25,11 @@
 // icon
 #define IDI_ICON1                       107
 
-// Функция для записи данных
+// Функция для записи данных в строку
 size_t WriteCallback(void* contents, size_t size, size_t nmemb, void* userp) {
     ((std::string*)userp)->append((char*)contents, size * nmemb);
     return size * nmemb;
 }
-
 
 // Функция для загрузки файла через GitHub API
 std::string downloadFileFromGitHubAPI(const std::string& url, const std::string& token) {
@@ -70,17 +70,44 @@ std::string downloadFileFromGitHubAPI(const std::string& url, const std::string&
 
     return readBuffer;
 }
-// Function to get current UTC time
-std::time_t getCurrentUTCTime() {
-    auto now = std::chrono::system_clock::now();
-    auto now_c = std::chrono::system_clock::to_time_t(now);
-    std::tm* utc_tm = std::gmtime(&now_c);
-    return std::mktime(utc_tm);
-}
+/ Функция для получения текущего времени из WorldTimeAPI
+std::time_t getCurrentTimeFromAPI() {
+    CURL* curl;
+    CURLcode res;
+    std::string readBuffer;
 
-// Adjust the time to UTC+2
-std::time_t getCurrentUTCPlus2Time() {
-    return getCurrentUTCTime() + 2 * 60 * 60; // Add 2 hours
+    // Инициализация cURL
+    curl = curl_easy_init();
+    if (curl) {
+        curl_easy_setopt(curl, CURLOPT_URL, "http://worldtimeapi.org/api/timezone/Etc/UTC");
+        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
+        curl_easy_setopt(curl, CURLOPT_WRITEDATA, &readBuffer);
+
+        // Выполнение запроса
+        res = curl_easy_perform(curl);
+        if (res != CURLE_OK) {
+            std::cerr << "CURL error: " << curl_easy_strerror(res) << std::endl;
+            return 0;
+        }
+
+        // Очистка cURL
+        curl_easy_cleanup(curl);
+    }
+
+    // Парсинг JSON ответа
+    Json::Value jsonData;
+    Json::Reader jsonReader;
+    if (jsonReader.parse(readBuffer, jsonData)) {
+        std::string datetimeStr = jsonData["datetime"].asString();
+        std::tm tm = {};
+        std::istringstream ss(datetimeStr);
+        ss >> std::get_time(&tm, "%Y-%m-%dT%H:%M:%S%z");
+        return std::mktime(&tm);
+    }
+    else {
+        std::cerr << "Failed to parse JSON response." << std::endl;
+        return 0;
+    }
 }
 
 #include <sstream>
@@ -161,7 +188,36 @@ void uploadKeysFile(const std::string& url, const std::string& token, const std:
         curl_easy_cleanup(curl);
     }
 }
+void updateKeysFile(const std::string& key, const std::string& hwid, const std::string& filePath) {
+    std::ifstream inFile(filePath);
+    std::stringstream buffer;
+    buffer << inFile.rdbuf();
+    inFile.close();
 
+    std::string fileContent = buffer.str();
+    std::istringstream iss(fileContent);
+    std::string line;
+    std::string updatedContent;
+
+    while (std::getline(iss, line)) {
+        std::istringstream lineStream(line);
+        std::string fileKey, fileHWID, expiryDate;
+
+        std::getline(lineStream, fileKey, '|');
+        std::getline(lineStream, fileHWID, '|');
+        std::getline(lineStream, expiryDate);
+
+        if (fileKey == key && fileHWID == "none") {
+            line = fileKey + "|" + hwid + "|" + expiryDate;
+        }
+
+        updatedContent += line + "\n";
+    }
+
+    std::ofstream outFile(filePath);
+    outFile << updatedContent;
+    outFile.close();
+}
 
 // Function to get HWID (hardware ID)
 std::string get_hwid() {
@@ -613,13 +669,71 @@ bool loadLicenseKey(std::string& licenseKey) {
 int main() {
     SetConsoleTitle("sJ Macro");
 
+    std::string userKey = "123";  // Пример ключа
+    std::time_t currentTime = getCurrentTimeFromAPI();
+    if (currentTime == 0) {
+        std::cerr << "Failed to get current time from API." << std::endl;
+        return 1;
+    }
+
+    // Получение HWID
+    std::string hwid = get_hwid();
+
+    // Обновление ключей
+    const std::string keysUrl = "https://raw.githubusercontent.com/s1nse1337/sad/main/keys.txt";
+    const std::string token = "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";
+    std::string fileContent = downloadFileFromGitHubAPI(keysUrl, token);
+    std::ofstream outFile("keys.txt");
+    outFile << fileContent;
+    outFile.close();
+
+    updateKeysFile(userKey, hwid, "keys.txt");
+
+    // Проверка ключа
+    std::istringstream iss(fileContent);
+    std::string line;
+    bool keyFound = false;
+
+    while (std::getline(iss, line)) {
+        std::istringstream lineStream(line);
+        std::string fileKey, fileHWID, expiryDate;
+
+        std::getline(lineStream, fileKey, '|');
+        std::getline(lineStream, fileHWID, '|');
+        std::getline(lineStream, expiryDate);
+
+        if (fileKey == userKey) {
+            keyFound = true;
+
+            // Парсинг даты окончания
+            std::tm tm = {};
+            std::istringstream ss(expiryDate);
+            ss >> std::get_time(&tm, "%Y-%m-%d");
+
+            std::time_t expirationTime = std::mktime(&tm);
+            if (std::difftime(expirationTime, currentTime) < 0) {
+                std::cerr << "Key has expired." << std::endl;
+                return 1;
+            }
+
+            std::string remainingDays = std::to_string((expirationTime - currentTime) / (60 * 60 * 24));
+            std::cout << "Key is valid. Days remaining: " << remainingDays << " days" << std::endl;
+            break;
+        }
+    }
+
+    if (!keyFound) {
+        std::cerr << "Key not found." << std::endl;
+        return 1;
+    }
+
     // Устанавливаем обработчик сигналов завершения
     SetConsoleCtrlHandler(consoleHandler, TRUE);
     std::string createFolderCommand = "mkdir C:\\comref";
 
     std::string remainingDays;
     const std::string keysUrl = "https://raw.githubusercontent.com/s1nse1337/sad/main/keys.txt";
-    const std::string token = "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";
+    const std::string token = "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";
 
     std::string fileContent = downloadFileFromGitHubAPI(keysUrl, token);
     if (fileContent.empty()) {
