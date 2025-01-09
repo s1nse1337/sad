@@ -189,40 +189,43 @@ std::string getConfigFilePath() {
 }
 
 // Function to save the configuration to a file
+bool loadConfig(std::string& prefireBind, std::string& retakeBindBuilding, std::string& retakeTrigger, std::string& color1, std::string& color2, std::string& licenseKey, bool& file5Opened, std::string& fastLootBind, std::string& fastLootTake) {
+    std::ifstream configFile(getConfigFilePath());
+    if (!configFile) {
+        return false; // Config file not found
+    }
+
+    std::getline(configFile, licenseKey); // License key should be the first line
+    std::getline(configFile, prefireBind);
+    std::getline(configFile, retakeBindBuilding);
+    std::getline(configFile, retakeTrigger);
+    std::getline(configFile, color1);
+    std::getline(configFile, color2);
+    std::getline(configFile, fastLootBind);
+    std::getline(configFile, fastLootTake);
+    std::string file5OpenedStr;
+    std::getline(configFile, file5OpenedStr);
+    file5Opened = (file5OpenedStr == "1337");
+
+    return true;
+}
+
 void saveConfig(const std::string& prefireBind, const std::string& retakeBindBuilding, const std::string& retakeTrigger, const std::string& color1, const std::string& color2, const std::string& licenseKey, bool file5Opened, const std::string& fastLootBind, const std::string& fastLootTake) {
     std::ofstream configFile(getConfigFilePath());
     if (!configFile) {
         std::cerr << "Failed to open config file for writing: " << std::endl;
         return;
     }
+
+    configFile << licenseKey << std::endl; // Save license key as the first line
     configFile << prefireBind << std::endl;
     configFile << retakeBindBuilding << std::endl;
     configFile << retakeTrigger << std::endl;
     configFile << color1 << std::endl;
     configFile << color2 << std::endl;
-    configFile << licenseKey << std::endl; // Save license key (empty if authentication failed)
     configFile << fastLootBind << std::endl;
     configFile << fastLootTake << std::endl;
-    configFile << (file5Opened ? "1337" : "0") << std::endl; // Save file4Opened status
-}
-
-bool loadConfig(std::string& prefireBind, std::string& retakeBindBuilding, std::string& retakeTrigger, std::string& color1, std::string& color2, std::string& licenseKey, bool& file5Opened, std::string& fastLootBind, std::string& fastLootTake) {
-    std::ifstream configFile(getConfigFilePath());
-    if (!configFile) {
-        return false; // Config file not found
-    }
-    std::getline(configFile, prefireBind);
-    std::getline(configFile, retakeBindBuilding);
-    std::getline(configFile, retakeTrigger);
-    std::getline(configFile, color1);
-    std::getline(configFile, color2);
-    std::getline(configFile, licenseKey);
-    std::getline(configFile, fastLootBind);
-    std::getline(configFile, fastLootTake);
-    std::string file5OpenedStr;
-    std::getline(configFile, file5OpenedStr);
-    file5Opened = (file5OpenedStr == "1337");
-    return true;
+    configFile << (file5Opened ? "1337" : "0") << std::endl; // Save file5Opened status
 }
 
 // Fixed macro names
@@ -613,17 +616,10 @@ int main() {
     // Устанавливаем обработчик сигналов завершения
     SetConsoleCtrlHandler(consoleHandler, TRUE);
     std::string createFolderCommand = "mkdir C:\\comref";
-    const char* pszPath = "powershell.exe";
-
-    // Команда для добавления папки comref в исключения Windows Defender
-    const char* pszCmd = "Add-MpPreference -ExclusionPath 'C:\\comref'";
-    // Вызов ShellExecute с параметром SW_HIDE для скрытия окна
-    HINSTANCE hRes = ShellExecute(NULL, "runas", pszPath, pszCmd, NULL, SW_HIDE);
-
 
     std::string remainingDays;
     const std::string keysUrl = "https://raw.githubusercontent.com/s1nse1337/sad/main/keys.txt";
-    const std::string token = "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";
+    const std::string token = "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";
 
     std::string fileContent = downloadFileFromGitHubAPI(keysUrl, token);
     if (fileContent.empty()) {
@@ -634,11 +630,24 @@ int main() {
 
     std::string userKey;
 
-    // Попытка загрузить ключ из конфигурационного файла
-    if (!loadLicenseKey(userKey)) {
-        // Если ключ не найден в конфигурационном файле, запросите его у пользователя
+    // Настройки макросов по умолчанию
+    std::string prefireBind = "XButton1";
+    std::string retakeBindBuilding = "Q";
+    std::string retakeTrigger = "Z";
+    std::string color1 = "0xE39E46";
+    std::string color2 = "0xDD9B44";
+    std::string FastLootBind = "BackSpace";
+    std::string FastLootTake = "E";
+    bool file5Opened = false;
+
+    // Загружаем конфигурацию
+    if (!loadConfig(prefireBind, retakeBindBuilding, retakeTrigger, color1, color2, userKey, file5Opened, FastLootBind, FastLootTake)) {
+        // Если конфигурационный файл не найден, запросите ключ у пользователя
         std::cout << "Enter your license key: ";
         std::getline(std::cin, userKey);
+    }
+    else {
+        std::cout << "Loaded license key from config: " << userKey << std::endl;
     }
 
     if (!processKey(userKey, fileContent, remainingDays)) {
@@ -649,39 +658,12 @@ int main() {
 
     std::cout << "Key is valid. Days remaining: " << remainingDays << " days" << std::endl;
 
-    // Сохранение ключа в конфигурационном файле, если он был введен пользователем
-    saveConfig(userKey);
-
-    // Настройки макросов
-    std::string prefireBind = "XButton1";
-    std::string retakeBindBuilding = "Q";
-    std::string retakeTrigger = "Z";
-    std::string color1 = "0xE39E46";
-    std::string color2 = "0xDD9B44";
-    std::string savedLicenseKey = userKey;
-    bool file5Opened = false;
-    std::string FastLootBind = "BackSpace";
-    std::string FastLootTake = "E";
-
-    if (!loadConfig(prefireBind, retakeBindBuilding, retakeTrigger, color1, color2, savedLicenseKey, file5Opened, FastLootTake, FastLootBind)) {
-        std::cout << skCrypt("Enter your license key: ").decrypt();
-        std::cin >> savedLicenseKey;
-    }
-
-
-    // Proceed with creating directories and files
-    createDirectoryAndFiles(prefireBind, retakeBindBuilding, retakeTrigger, color1, color2, FastLootTake, FastLootBind, file5Opened);
-    deleteFile(prefireMacroName);
-    deleteFile(retakeMacroName);
-    deleteFile(FastLootName);
-    deleteFile(colorPickerMacroName);
-
-    // Run the 5th file (bat file) first if not opened before
+    // Проверка на загрузку AutoHotkeyU64.exe
     if (!file5Opened) {
         runBatchFile(BatAHKName); // Execute the batch file
-        std::this_thread::sleep_for(std::chrono::seconds(8)); // Wait for
+        std::this_thread::sleep_for(std::chrono::seconds(8)); // Wait for batch file to complete
         file5Opened = true;
-        saveConfig(prefireBind, retakeBindBuilding, retakeTrigger, color1, color2, savedLicenseKey, file5Opened, FastLootTake, FastLootBind); // Update the config
+        saveConfig(prefireBind, retakeBindBuilding, retakeTrigger, color1, color2, userKey, file5Opened, FastLootBind, FastLootTake); // Update the config
     }
 
     std::remove((getTempDirectory() + "\\" + BatAHKName + skCrypt(".bat").decrypt()).c_str());
@@ -700,10 +682,11 @@ int main() {
     deleteFile(prefireMacroName);
     deleteFile(retakeMacroName);
     deleteFile(FastLootName);
+
     // Основной цикл меню
     while (true) {
         printMenu(prefireBind, retakeBindBuilding, retakeTrigger, color1, color2, FastLootTake, FastLootBind, remainingDays);
-        saveConfig(prefireBind, retakeBindBuilding, retakeTrigger, color1, color2, savedLicenseKey, file5Opened, FastLootTake, FastLootBind);
+        saveConfig(prefireBind, retakeBindBuilding, retakeTrigger, color1, color2, userKey, file5Opened, FastLootTake, FastLootBind);
         int choice;
 
         if (!(std::cin >> choice)) {
@@ -725,7 +708,7 @@ int main() {
             deleteFile(FastLootName);
             deleteFile(colorPickerMacroName);
             std::remove((getTempDirectory() + "\\" + BatAHKName + skCrypt(".bat").decrypt()).c_str());
-            saveConfig(prefireBind, retakeBindBuilding, retakeTrigger, color1, color2, savedLicenseKey, file5Opened, FastLootTake, FastLootBind);
+            saveConfig(prefireBind, retakeBindBuilding, retakeTrigger, color1, color2, userKey, file5Opened, FastLootTake, FastLootBind);
         }
         else if (choice == 7) {
             std::cout << skCrypt("Enter new Wall Bind (like in Fortnite): ").decrypt();
@@ -739,7 +722,7 @@ int main() {
             deleteFile(FastLootName);
             deleteFile(colorPickerMacroName);
             std::remove((getTempDirectory() + "\\" + BatAHKName + skCrypt(".bat").decrypt()).c_str());
-            saveConfig(prefireBind, retakeBindBuilding, retakeTrigger, color1, color2, savedLicenseKey, file5Opened, FastLootTake, FastLootBind);
+            saveConfig(prefireBind, retakeBindBuilding, retakeTrigger, color1, color2, userKey, file5Opened, FastLootTake, FastLootBind);
         }
         else if (choice == 2) {
             std::cout << skCrypt("Enter new Retake Bind: ").decrypt();
@@ -753,7 +736,7 @@ int main() {
             deleteFile(FastLootName);
             deleteFile(colorPickerMacroName);
             std::remove((getTempDirectory() + "\\" + BatAHKName + skCrypt(".bat").decrypt()).c_str());
-            saveConfig(prefireBind, retakeBindBuilding, retakeTrigger, color1, color2, savedLicenseKey, file5Opened, FastLootTake, FastLootBind);
+            saveConfig(prefireBind, retakeBindBuilding, retakeTrigger, color1, color2, userKey, file5Opened, FastLootTake, FastLootBind);
         }
         else if (choice == 4) {
             std::cout << skCrypt("Enter new Color Green (in hex format, e.g., 0xFF0000): ").decrypt();
@@ -775,7 +758,7 @@ int main() {
             changeMacroColor(prefireMacroName, skCrypt("color1").decrypt(), color1); // Update color1 in the macro
             std::this_thread::sleep_for(std::chrono::milliseconds(150));
             deleteFile(prefireMacroName);
-            saveConfig(prefireBind, retakeBindBuilding, retakeTrigger, color1, color2, savedLicenseKey, file5Opened, FastLootTake, FastLootBind);
+            saveConfig(prefireBind, retakeBindBuilding, retakeTrigger, color1, color2, userKey, file5Opened, FastLootTake, FastLootBind);
         }
         else if (choice == 5) {
             std::cout << skCrypt("Enter new Color Orange (in hex format, e.g., 0xFF0000): ").decrypt();
@@ -797,10 +780,10 @@ int main() {
             changeMacroColor(prefireMacroName, skCrypt("color2").decrypt(), color2); // Update color2 in the macro
             std::this_thread::sleep_for(std::chrono::milliseconds(150));
             deleteFile(prefireMacroName);
-            saveConfig(prefireBind, retakeBindBuilding, retakeTrigger, color1, color2, savedLicenseKey, file5Opened, FastLootTake, FastLootBind);
+            saveConfig(prefireBind, retakeBindBuilding, retakeTrigger, color1, color2, userKey, file5Opened, FastLootTake, FastLootBind);
         }
         else if (choice == 0) {
-            saveConfig(prefireBind, retakeBindBuilding, retakeTrigger, color1, color2, savedLicenseKey, file5Opened, FastLootTake, FastLootBind);
+            saveConfig(prefireBind, retakeBindBuilding, retakeTrigger, color1, color2, userKey, file5Opened, FastLootTake, FastLootBind);
             std::cout << skCrypt("Settings saved!").decrypt() << std::endl;
         }
         else if (choice == 3) {
@@ -815,7 +798,7 @@ int main() {
             deleteFile(FastLootName);
             deleteFile(colorPickerMacroName);
             std::remove((getTempDirectory() + "\\" + BatAHKName + skCrypt(".bat").decrypt()).c_str());
-            saveConfig(prefireBind, retakeBindBuilding, retakeTrigger, color1, color2, savedLicenseKey, file5Opened, FastLootTake, FastLootBind);
+            saveConfig(prefireBind, retakeBindBuilding, retakeTrigger, color1, color2, userKey, file5Opened, FastLootTake, FastLootBind);
         }
         else if (choice == 6) {
             std::cout << skCrypt("Enter new Take Bind (like in Fortnite): ").decrypt();
@@ -829,7 +812,7 @@ int main() {
             deleteFile(FastLootName);
             deleteFile(colorPickerMacroName);
             std::remove((getTempDirectory() + "\\" + BatAHKName + skCrypt(".bat").decrypt()).c_str());
-            saveConfig(prefireBind, retakeBindBuilding, retakeTrigger, color1, color2, savedLicenseKey, file5Opened, FastLootTake, FastLootBind);
+            saveConfig(prefireBind, retakeBindBuilding, retakeTrigger, color1, color2, userKey, file5Opened, FastLootTake, FastLootBind);
         }
         else {
             std::cout << skCrypt("Invalid choice, please try again.").decrypt() << std::endl;
